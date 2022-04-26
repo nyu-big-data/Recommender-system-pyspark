@@ -4,8 +4,12 @@ from itertools import count
 from requests import head
 
 # And pyspark.sql to get the spark session
+import pandas as pd
+import numpy as np
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
+from pyspark.ml.evaluation import RegressionEvaluator
+from pyspark.ml.recommendation import ALS
 
 
 def main(spark, netID):
@@ -15,14 +19,32 @@ def main(spark, netID):
     spark : SparkSession object
     netID : string, netID of student to find files in HDFS
     '''
-    print('Lab 3 Example dataframe loading and SQL query')
 
     # Load the boats.txt and sailors.json data into DataFrame
-    movies = spark.read.csv(f'hdfs:/user/{netID}/movielens/ml-latest-small/movies.csv' ,header=True)
-    ratings = spark.read.csv(f'hdfs:/user/{netID}/movielens/ml-latest-small/ratings.csv', header=True)
+    movies_df = spark.read.csv(f'hdfs:/user/{netID}/movielens/ml-latest-small/movies.csv' ,header=True)
+    ratings_df = spark.read.csv(f'hdfs:/user/{netID}/movielens/ml-latest-small/ratings.csv', header=True, schema='userId INT, movieId INT, rating FLOAT , timestamp INT')
 
-    movies.show(5)
-    ratings.show(5)
+
+    ratings = ratings_df.rdd
+    nofRatings = ratings.count()
+    nofUsers = ratings.map(lambda x: x[0]).distinct().count()
+    nofMovies = ratings.map(lambda x: x[1]).distinct().count()
+
+    print("Got %d ratings from %d users on %d movies." % (nofRatings, nofUsers, nofMovies))
+
+    train_df, val_df, test_df = ratings_df.randomSplit([.6, .2, .2])
+    print(train_df.count(), val_df.count(), test_df.count())
+
+    train_df.createOrReplaceTempView('train_df')
+    train_df.write.csv("hdfs:/user/mmk9369/movielens_train.csv")
+
+    val_df.createOrReplaceTempView('val_df')
+    val_df.write.csv("hdfs:/user/mmk9369/movielens_val.csv")
+
+    test_df.createOrReplaceTempView('test_df')
+    test_df.write.csv("hdfs:/user/mmk9369/movielens_test.csv")
+
+    
 
 
 
