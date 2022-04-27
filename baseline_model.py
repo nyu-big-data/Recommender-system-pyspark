@@ -21,39 +21,10 @@ def main(spark, netID):
     '''
 
 
-    train_df = spark.read.csv('hdfs:/user/mmk9369/movielens_train.csv', header=True)
-    val_df = spark.read.csv('hdfs:/user/mmk9369/movielens_val.csv', header=True)
-    test_df = spark.read.csv('hdfs:/user/mmk9369/movielens_test.csv', header=True)
+    train_df = spark.read.csv('hdfs:/user/mmk9369/movielens_train.csv', header=True, schema='userId INT, movieId INT, rating FLOAT , timestamp INT')
+    val_df = spark.read.csv('hdfs:/user/mmk9369/movielens_val.csv', header=True, schema='userId INT, movieId INT, rating FLOAT , timestamp INT')
+    test_df = spark.read.csv('hdfs:/user/mmk9369/movielens_test.csv', header=True, schema='userId INT, movieId INT, rating FLOAT , timestamp INT')
   
-    regParam = 0.1
-    ranks = range(4, 12)
-    errors = []
-
-
-    min_error = 9999
-
-    for rank in ranks:
-        als = ALS(maxIter=5, regParam=regParam, rank=rank, userCol="userId", itemCol="movieId", ratingCol="rating")
-        model = als.fit(train_df)
-        predictions = model.transform(val_df)
-        new_predictions = predictions.filter(F.col('prediction') != np.nan)
-        evaluator = RegressionEvaluator(metricName="rmse", labelCol="rating", predictionCol="prediction")
-        rmse = evaluator.evaluate(new_predictions)
-        errors.append(rmse)
-
-        print('For rank %s the RMSE is %s' % (rank, rmse))
-        if rmse < min_error:
-            min_error = rmse
-            best_rank = rank
-    print('The best model was trained with rank %s' % best_rank)
-
-    # Generate top 10 movie recommendations for each user
-    userRecs = model.recommendForAllUsers(10).show(5)
-    # Generate top 10 user recommendations for each movie
-    movieRecs = model.recommendForAllItems(10).show(5)
-
-
-
 
 # Only enter this block if we're in main
 if __name__ == "__main__":

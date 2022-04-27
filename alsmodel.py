@@ -10,6 +10,7 @@ from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
 from pyspark.ml.evaluation import RegressionEvaluator
 from pyspark.ml.recommendation import ALS
+from pyspark.ml.tuning import CrossValidator, ParamGridBuilder
 
 
 def main(spark, netID):
@@ -21,36 +22,40 @@ def main(spark, netID):
     '''
 
 
-    train_df = spark.read.csv('hdfs:/user/mmk9369/movielens_train.csv', header=True)
-    val_df = spark.read.csv('hdfs:/user/mmk9369/movielens_val.csv', header=True)
-    test_df = spark.read.csv('hdfs:/user/mmk9369/movielens_test.csv', header=True)
+    train_df = spark.read.csv('hdfs:/user/mmk9369/movielens_train.csv', header=True,schema='userId INT, movieId INT, rating FLOAT , timestamp INT')
+    val_df = spark.read.csv('hdfs:/user/mmk9369/movielens_val.csv', header=True, schema='userId INT, movieId INT, rating FLOAT , timestamp INT')
+    test_df = spark.read.csv('hdfs:/user/mmk9369/movielens_test.csv', header=True, schema='userId INT, movieId INT, rating FLOAT , timestamp INT')
   
     regParam = 0.1
-    ranks = range(4, 12)
-    errors = []
-
-
-    min_error = 9999
-
-    for rank in ranks:
-        als = ALS(maxIter=5, regParam=regParam, rank=rank, userCol="userId", itemCol="movieId", ratingCol="rating")
-        model = als.fit(train_df)
-        predictions = model.transform(val_df)
-        new_predictions = predictions.filter(F.col('prediction') != np.nan)
-        evaluator = RegressionEvaluator(metricName="rmse", labelCol="rating", predictionCol="prediction")
-        rmse = evaluator.evaluate(new_predictions)
-        errors.append(rmse)
-
-        print('For rank %s the RMSE is %s' % (rank, rmse))
-        if rmse < min_error:
-            min_error = rmse
-            best_rank = rank
-    print('The best model was trained with rank %s' % best_rank)
-
+   
+    als = ALS(maxIter=5, regParam=regParam, rank=5, userCol="userId", itemCol="movieId", ratingCol="rating")
+    model = als.fit(train_df)
+    predictions = model.transform(val_df)
+    new_predictions = predictions.filter(F.col('prediction') != np.nan)
+    evaluator = RegressionEvaluator(metricName="rmse", labelCol="rating", predictionCol="prediction")
+    rmse = evaluator.evaluate(new_predictions)
+    print ("the rmse : {}".format(rmse))
+ 
     # Generate top 10 movie recommendations for each user
-    userRecs = model.recommendForAllUsers(10).show(5)
+    userRecs = model.recommendForAllUsers(10).select('userId','recommendations').show(1)
     # Generate top 10 user recommendations for each movie
-    movieRecs = model.recommendForAllItems(10).show(5)
+    movieRecs = model.recommendForAllItems(10).select('movieId', 'recommendations').show(1)
+        # Hyperparameter Tuning
+
+    
+    als = ALS(maxIter=5, regParam=regParam, rank=5, userCol="userId", itemCol="movieId", ratingCol="rating")
+    paramGrid = ParamGridBuilder().addGrid(als.regParam, [0.1, 0.01]).addGrid(als.rank, range(4, 12)).build()
+    evaluator = RegressionEvaluator(metricName="rmse", labelCol="rating", predictionCol="prediction")
+    crossval = CrossValidator(estimator=als,
+                          estimatorParamMaps=paramGrid,
+                          evaluator=evaluator,
+                          numFolds=5)
+    model = crossval.fit(train_df)
+    bestModel = model.bestModel
+    final_pred = bestModel.transform(val_df)
+    final_pred = final_pred.filter(F.col('prediction') != np.nan)
+    rmse = evaluator.evaluate(final_pred)
+    print ("the rmse for optimal grid parameters with cross validation is: {}".format(rmse))
 
 
 
