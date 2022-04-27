@@ -32,7 +32,17 @@ def main(spark, netID):
 
     print("Got %d ratings from %d users on %d movies." % (nofRatings, nofUsers, nofMovies))
 
-    train_df, val_df, test_df = ratings_df.randomSplit([.6, .2, .2])
+    df = ratings_df.orderBy("userId", ascending=True)
+
+    df1 = df.iloc[0:len(df)//2, :]
+    df2 = df.iloc[(len(df)//2 + 1):, :]
+
+    train_df1, test_df = df1.randomSplit([.8, .2])
+    train_df2, val_df = df2.randomSplit([.8, .2])
+
+    train_df =  train_df1.merge(train_df2)
+
+    # train_df, val_df, test_df = ratings_df.randomSplit([.6, .2, .2])
     print(train_df.count(), val_df.count(), test_df.count())
 
     train_df.createOrReplaceTempView('train_df')
