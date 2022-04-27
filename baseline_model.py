@@ -25,6 +25,17 @@ def main(spark, netID):
     val_df = spark.read.csv(f'hdfs:/user/{netID}/movielens_val.csv', header=True, schema='userId INT, movieId INT, rating FLOAT , timestamp INT')
     test_df = spark.read.csv(f'hdfs:/user/{netID}/movielens_test.csv', header=True, schema='userId INT, movieId INT, rating FLOAT , timestamp INT')
   
+    print("Train set")
+    df1 = train_df.groupBy(train_df.movieId).agg(F.mean('rating').alias('AvgRating'), F.count('rating').alias("count")).filter('count'>=50).orderBy("AvgRating", ascending = False).limit(10).show()
+    df2 = train_df.groupBy(train_df.userId).agg(F.mean('rating').alias('AvgRating')).orderBy("AvgRating", ascending = False).limit(10).show()
+
+    print("Validation set")
+    df1 = val_df.groupBy(val_df.movieId).agg(F.mean('rating').alias('AvgRating'), F.count('rating').alias("count")).filter('count'>=50).orderBy("AvgRating", ascending = False).limit(10).show()
+    df2 = val_df.groupBy(val_df.userId).agg(F.mean('rating').alias('AvgRating')).orderBy("AvgRating", ascending = False).limit(10).show()
+
+    print("Test set")
+    df1 = test_df.groupBy(test_df.movieId).agg(F.mean('rating').alias('AvgRating'), F.count('rating').alias("count")).filter('count'>=50).orderBy("AvgRating", ascending = False).limit(10).show()
+    df2 = test_df.groupBy(test_df.userId).agg(F.mean('rating').alias('AvgRating')).orderBy("AvgRating", ascending = False).limit(10).show()
 
 # Only enter this block if we're in main
 if __name__ == "__main__":
