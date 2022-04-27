@@ -36,13 +36,13 @@ def main(spark, netID):
     print(train_df.count(), val_df.count(), test_df.count())
 
     train_df.createOrReplaceTempView('train_df')
-    train_df.write.csv("hdfs:/user/mmk9369/movielens_train.csv")
+    train_df.write.csv(f"hdfs:/user/{netID}/movielens_train.csv")
 
     val_df.createOrReplaceTempView('val_df')
-    val_df.write.csv("hdfs:/user/mmk9369/movielens_val.csv")
+    val_df.write.csv(f"hdfs:/user/{netID}/movielens_val.csv")
 
     test_df.createOrReplaceTempView('test_df')
-    test_df.write.csv("hdfs:/user/mmk9369/movielens_test.csv")
+    test_df.write.csv(f"hdfs:/user/{netID}/movielens_test.csv")
 
     
 

@@ -21,9 +21,9 @@ def main(spark, netID):
     '''
 
 
-    train_df = spark.read.csv('hdfs:/user/mmk9369/movielens_train.csv', header=True, schema='userId INT, movieId INT, rating FLOAT , timestamp INT')
-    val_df = spark.read.csv('hdfs:/user/mmk9369/movielens_val.csv', header=True, schema='userId INT, movieId INT, rating FLOAT , timestamp INT')
-    test_df = spark.read.csv('hdfs:/user/mmk9369/movielens_test.csv', header=True, schema='userId INT, movieId INT, rating FLOAT , timestamp INT')
+    train_df = spark.read.csv(f'hdfs:/user/{netID}/movielens_train.csv', header=True, schema='userId INT, movieId INT, rating FLOAT , timestamp INT')
+    val_df = spark.read.csv(f'hdfs:/user/{netID}/movielens_val.csv', header=True, schema='userId INT, movieId INT, rating FLOAT , timestamp INT')
+    test_df = spark.read.csv(f'hdfs:/user/{netID}/movielens_test.csv', header=True, schema='userId INT, movieId INT, rating FLOAT , timestamp INT')
   
 
 # Only enter this block if we're in main

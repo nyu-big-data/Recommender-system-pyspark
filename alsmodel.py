@@ -22,9 +22,9 @@ def main(spark, netID):
     '''
 
 
-    train_df = spark.read.csv('hdfs:/user/mmk9369/movielens_train.csv', header=True,schema='userId INT, movieId INT, rating FLOAT , timestamp INT')
-    val_df = spark.read.csv('hdfs:/user/mmk9369/movielens_val.csv', header=True, schema='userId INT, movieId INT, rating FLOAT , timestamp INT')
-    test_df = spark.read.csv('hdfs:/user/mmk9369/movielens_test.csv', header=True, schema='userId INT, movieId INT, rating FLOAT , timestamp INT')
+    train_df = spark.read.csv(f'hdfs:/user/{netID}/movielens_train.csv', header=True,schema='userId INT, movieId INT, rating FLOAT , timestamp INT')
+    val_df = spark.read.csv(f'hdfs:/user/{netID}/movielens_val.csv', header=True, schema='userId INT, movieId INT, rating FLOAT , timestamp INT')
+    test_df = spark.read.csv(f'hdfs:/user/{netID}/movielens_test.csv', header=True, schema='userId INT, movieId INT, rating FLOAT , timestamp INT')
   
     regParam = 0.1
    
@@ -36,10 +36,10 @@ def main(spark, netID):
     rmse = evaluator.evaluate(new_predictions)
     print ("the rmse : {}".format(rmse))
  
-    # Generate top 10 movie recommendations for each user
-    userRecs = model.recommendForAllUsers(10).select('userId','recommendations').show(1)
-    # Generate top 10 user recommendations for each movie
-    movieRecs = model.recommendForAllItems(10).select('movieId', 'recommendations').show(1)
+    # # Generate top 10 movie recommendations for each user
+    # userRecs = model.recommendForAllUsers(10).select('userId','recommendations').show(1)
+    # # Generate top 10 user recommendations for each movie
+    # movieRecs = model.recommendForAllItems(10).select('movieId', 'recommendations').show(1)
         # Hyperparameter Tuning
 
     
@@ -55,8 +55,13 @@ def main(spark, netID):
     final_pred = bestModel.transform(val_df)
     final_pred = final_pred.filter(F.col('prediction') != np.nan)
     rmse = evaluator.evaluate(final_pred)
-    print ("the rmse for optimal grid parameters with cross validation is: {}".format(rmse))
+    print ("the rmse for Validation set: {}".format(rmse))
 
+
+    final_pred = bestModel.transform(test_df)
+    final_pred = final_pred.filter(F.col('prediction') != np.nan)
+    rmse = evaluator.evaluate(final_pred)
+    print ("the rmse for Test set is: {}".format(rmse))
 
 
 
