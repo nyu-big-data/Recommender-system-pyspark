@@ -1,5 +1,6 @@
 import getpass
 from itertools import count
+from unittest import result
 
 from requests import head
 
@@ -8,9 +9,30 @@ import pandas as pd
 import numpy as np
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
+from pyspark.sql.window import Window
 from pyspark.ml.evaluation import RegressionEvaluator
 from pyspark.ml.recommendation import ALS
 
+
+def cal_acc(labels, prediction,setName):
+    labels_df = labels.toPandas()
+    pred_df = prediction.toPandas()
+    uId = []
+    a = []
+    result_df = pd.DataFrame(columns = ['userId', 'acc'])
+    users = labels_df['userId'].unique()
+    print("Number of users" , len(users))
+    for user in users:
+        uId.append(user) 
+        df1 = labels_df[labels_df['userId'] == user]
+        df = pred_df.merge(df1, on='movieId', how='inner')
+        acc = df.shape[0]/100
+        a.append(acc)
+
+    result_df['userId'] = uId
+    result_df['acc'] = a
+
+    result_df.to_csv('{}_set_output.csv'.format(setName), index=False)
 
 def main(spark, netID):
     '''Main routine for Lab Solutions
@@ -24,18 +46,19 @@ def main(spark, netID):
     train_df = spark.read.csv(f'hdfs:/user/{netID}/movielens_train.csv', header=True, schema='userId INT, movieId INT, rating FLOAT , timestamp INT')
     val_df = spark.read.csv(f'hdfs:/user/{netID}/movielens_val.csv', header=True, schema='userId INT, movieId INT, rating FLOAT , timestamp INT')
     test_df = spark.read.csv(f'hdfs:/user/{netID}/movielens_test.csv', header=True, schema='userId INT, movieId INT, rating FLOAT , timestamp INT')
-  
-    print("Train set")
-    df1 = train_df.groupBy(train_df.movieId).agg(F.mean('rating').alias('AvgRating'), F.count('rating').alias("count")).filter('count'>=50).orderBy("AvgRating", ascending = False).limit(10).show()
-    df2 = train_df.groupBy(train_df.userId).agg(F.mean('rating').alias('AvgRating')).orderBy("AvgRating", ascending = False).limit(10).show()
 
-    print("Validation set")
-    df1 = val_df.groupBy(val_df.movieId).agg(F.mean('rating').alias('AvgRating'), F.count('rating').alias("count")).filter('count'>=50).orderBy("AvgRating", ascending = False).limit(10).show()
-    df2 = val_df.groupBy(val_df.userId).agg(F.mean('rating').alias('AvgRating')).orderBy("AvgRating", ascending = False).limit(10).show()
+    predictions = train_df.groupBy(train_df.movieId).agg(F.mean('rating').alias('AvgRating'), F.count('rating').alias("count")).filter(F.col('count')>=50).orderBy("AvgRating", ascending = False).limit(100)
+    
+    val_window = Window.partitionBy(val_df['userId']).orderBy(val_df['rating'].desc())
+    valLabels = val_df.select('*', F.row_number().over(val_window).alias('counts')).filter(F.col('counts') <= 100)
 
-    print("Test set")
-    df1 = test_df.groupBy(test_df.movieId).agg(F.mean('rating').alias('AvgRating'), F.count('rating').alias("count")).filter('count'>=50).orderBy("AvgRating", ascending = False).limit(10).show()
-    df2 = test_df.groupBy(test_df.userId).agg(F.mean('rating').alias('AvgRating')).orderBy("AvgRating", ascending = False).limit(10).show()
+    cal_acc(valLabels,predictions,'val')
+
+    test_window = Window.partitionBy(test_df['userId']).orderBy(test_df['rating'].desc())
+    testLabels = test_df.select('*', F.row_number().over(test_window).alias('counts')).filter(F.col('counts') <= 100)
+
+    cal_acc(testLabels,predictions,'test')
+
 
 # Only enter this block if we're in main
 if __name__ == "__main__":

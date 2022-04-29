@@ -36,8 +36,8 @@ def main(spark, netID):
     df1 = ratings_df.orderBy("userId", ascending=True).limit(c)
     df2 = ratings_df.orderBy("userId", ascending=False).limit(c)
 
-    train_df1, test_df = df1.randomSplit([.8, .2])
-    train_df2, val_df = df2.randomSplit([.8, .2])
+    train_df1, test_df = df1.randomSplit([.6, .4])
+    train_df2, val_df = df2.randomSplit([.6, .4])
 
     train_df =  train_df1.union(train_df2) 
     
