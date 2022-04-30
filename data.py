@@ -1,3 +1,4 @@
+from cgi import test
 import getpass
 from itertools import count
 
@@ -11,20 +12,7 @@ from pyspark.sql import functions as F
 from pyspark.ml.evaluation import RegressionEvaluator
 from pyspark.ml.recommendation import ALS
 
-
-def main(spark, netID):
-    '''Main routine for Lab Solutions
-    Parameters
-    ----------
-    spark : SparkSession object
-    netID : string, netID of student to find files in HDFS
-    '''
-
-    # Load the boats.txt and sailors.json data into DataFrame
-    movies_df = spark.read.csv(f'hdfs:/user/{netID}/movielens/ml-latest-small/movies.csv' ,header=True)
-    ratings_df = spark.read.csv(f'hdfs:/user/{netID}/movielens/ml-latest-small/ratings.csv', header=True, schema='userId INT, movieId INT, rating FLOAT , timestamp INT')
-
-
+def partition(ratings_df):
     ratings = ratings_df.rdd
     nofRatings = ratings.count()
     nofUsers = ratings.map(lambda x: x[0]).distinct().count()
@@ -43,15 +31,42 @@ def main(spark, netID):
     
     # train_df, val_df, test_df = ratings_df.randomSplit([.6, .2, .2])
     print(train_df.count(), val_df.count(), test_df.count())
+    return train_df,val_df,test_df
 
+def main(spark, netID):
+    '''Main routine for Lab Solutions
+    Parameters
+    ----------
+    spark : SparkSession object
+    netID : string, netID of student to find files in HDFS
+    '''
+
+    #Small Dataset
+    ratings_df = spark.read.csv(f'hdfs:/user/{netID}/movielens/ml-latest-small/ratings.csv', header=True, schema='userId INT, movieId INT, rating FLOAT , timestamp INT')
+    
+    train_df, val_df , test_df = partition(ratings_df)
     train_df.createOrReplaceTempView('train_df')
-    train_df.write.csv(f"hdfs:/user/{netID}/movielens_train.csv")
+    train_df.write.csv(f"hdfs:/user/{netID}/movielens_small_train.csv")
 
     val_df.createOrReplaceTempView('val_df')
-    val_df.write.csv(f"hdfs:/user/{netID}/movielens_val.csv")
+    val_df.write.csv(f"hdfs:/user/{netID}/movielens_small_val.csv")
 
     test_df.createOrReplaceTempView('test_df')
-    test_df.write.csv(f"hdfs:/user/{netID}/movielens_test.csv")
+    test_df.write.csv(f"hdfs:/user/{netID}/movielens_small_test.csv")
+
+
+    #Large Dataset
+    ratings_df = spark.read.csv(f'hdfs:/user/{netID}/movielens/ml-latest/ratings.csv', header=True, schema='userId INT, movieId INT, rating FLOAT , timestamp INT')
+    
+    train_df, val_df , test_df = partition(ratings_df)
+    train_df.createOrReplaceTempView('train_df')
+    train_df.write.csv(f"hdfs:/user/{netID}/movielens_large_train.csv")
+
+    val_df.createOrReplaceTempView('val_df')
+    val_df.write.csv(f"hdfs:/user/{netID}/movielens_large_val.csv")
+
+    test_df.createOrReplaceTempView('test_df')
+    test_df.write.csv(f"hdfs:/user/{netID}/movielens_large_test.csv")
 
     
 

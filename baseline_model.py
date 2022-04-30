@@ -1,7 +1,7 @@
 import getpass
 from itertools import count
 from unittest import result
-
+import sys
 from requests import head
 
 # And pyspark.sql to get the spark session
@@ -14,7 +14,7 @@ from pyspark.ml.evaluation import RegressionEvaluator
 from pyspark.ml.recommendation import ALS
 
 
-def cal_acc(labels, prediction,setName):
+def cal_acc(labels, prediction):
     labels_df = labels.toPandas()
     pred_df = prediction.toPandas()
     uId = []
@@ -31,10 +31,9 @@ def cal_acc(labels, prediction,setName):
 
     result_df['userId'] = uId
     result_df['acc'] = a
+    return result_df
 
-    result_df.to_csv('{}_set_output.csv'.format(setName), index=False)
-
-def main(spark, netID):
+def main(spark, file_path):
     '''Main routine for Lab Solutions
     Parameters
     ----------
@@ -42,22 +41,25 @@ def main(spark, netID):
     netID : string, netID of student to find files in HDFS
     '''
 
-
-    train_df = spark.read.csv(f'hdfs:/user/{netID}/movielens_train.csv', header=True, schema='userId INT, movieId INT, rating FLOAT , timestamp INT')
-    val_df = spark.read.csv(f'hdfs:/user/{netID}/movielens_val.csv', header=True, schema='userId INT, movieId INT, rating FLOAT , timestamp INT')
-    test_df = spark.read.csv(f'hdfs:/user/{netID}/movielens_test.csv', header=True, schema='userId INT, movieId INT, rating FLOAT , timestamp INT')
+    train_df = spark.read.csv(file_path, header=True, schema='userId INT, movieId INT, rating FLOAT , timestamp INT')
+    val_df = spark.read.csv(file_path, header=True, schema='userId INT, movieId INT, rating FLOAT , timestamp INT')
+    test_df = spark.read.csv(file_path, header=True, schema='userId INT, movieId INT, rating FLOAT , timestamp INT')
 
     predictions = train_df.groupBy(train_df.movieId).agg(F.mean('rating').alias('AvgRating'), F.count('rating').alias("count")).filter(F.col('count')>=50).orderBy("AvgRating", ascending = False).limit(100)
     
     val_window = Window.partitionBy(val_df['userId']).orderBy(val_df['rating'].desc())
     valLabels = val_df.select('*', F.row_number().over(val_window).alias('counts')).filter(F.col('counts') <= 100)
 
-    cal_acc(valLabels,predictions,'val')
+    result = cal_acc(valLabels,predictions)
+    result_df = spark.createDataFrame(result)
+    result_df.write.csv("val_output.csv")
 
     test_window = Window.partitionBy(test_df['userId']).orderBy(test_df['rating'].desc())
     testLabels = test_df.select('*', F.row_number().over(test_window).alias('counts')).filter(F.col('counts') <= 100)
 
-    cal_acc(testLabels,predictions,'test')
+    result = cal_acc(testLabels,predictions)
+    result_df = spark.createDataFrame(result)
+    result_df.write.csv("test_output.csv")
 
 
 # Only enter this block if we're in main
@@ -67,7 +69,7 @@ if __name__ == "__main__":
     spark = SparkSession.builder.appName('part1').getOrCreate()
 
     # Get user netID from the command line
-    netID = getpass.getuser()
+    file_path = sys.argv[1]
 
     # Call our main routine
-    main(spark, netID)
+    main(spark, file_path)
