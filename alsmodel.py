@@ -1,6 +1,6 @@
 import getpass
 from itertools import count
-
+import sys
 from requests import head
 
 # And pyspark.sql to get the spark session
@@ -8,12 +8,13 @@ import pandas as pd
 import numpy as np
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
-from pyspark.ml.evaluation import RegressionEvaluator
+from pyspark.ml.evaluation import RegressionEvaluator, RankingEvaluator
+from pyspark.mllib.evaluation import RankingMetrics
 from pyspark.ml.recommendation import ALS
 from pyspark.ml.tuning import CrossValidator, ParamGridBuilder
 
 
-def main(spark, netID):
+def main(spark, train, val, test):
     '''Main routine for Lab Solutions
     Parameters
     ----------
@@ -21,47 +22,84 @@ def main(spark, netID):
     netID : string, netID of student to find files in HDFS
     '''
 
-
-    train_df = spark.read.csv(f'hdfs:/user/{netID}/movielens_train.csv', header=True,schema='userId INT, movieId INT, rating FLOAT , timestamp INT')
-    val_df = spark.read.csv(f'hdfs:/user/{netID}/movielens_val.csv', header=True, schema='userId INT, movieId INT, rating FLOAT , timestamp INT')
-    test_df = spark.read.csv(f'hdfs:/user/{netID}/movielens_test.csv', header=True, schema='userId INT, movieId INT, rating FLOAT , timestamp INT')
+    train_df = spark.read.csv(train, header=True, schema='userId INT, movieId INT, rating FLOAT , timestamp INT')
+    val_df = spark.read.csv(val, header=True, schema='userId INT, movieId INT, rating FLOAT , timestamp INT')
+    test_df = spark.read.csv(test, header=True, schema='userId INT, movieId INT, rating FLOAT , timestamp INT')
   
     regParam = 0.1
    
     als = ALS(maxIter=5, regParam=regParam, rank=5, userCol="userId", itemCol="movieId", ratingCol="rating")
     model = als.fit(train_df)
+
+    # Evaluation
+
+    #RMSE
     predictions = model.transform(val_df)
     new_predictions = predictions.filter(F.col('prediction') != np.nan)
     evaluator = RegressionEvaluator(metricName="rmse", labelCol="rating", predictionCol="prediction")
     rmse = evaluator.evaluate(new_predictions)
-    print ("the rmse : {}".format(rmse))
+    print ("the rmse before hyperparameter training: {}".format(rmse))
  
-    # # Generate top 10 movie recommendations for each user
-    # userRecs = model.recommendForAllUsers(10).select('userId','recommendations').show(1)
-    # # Generate top 10 user recommendations for each movie
-    # movieRecs = model.recommendForAllItems(10).select('movieId', 'recommendations').show(1)
-        # Hyperparameter Tuning
+    #Ranking Metrics
+    
+    #Validation
+    users = val_df.select(als.getUserCol()).distinct()
+    userRecs = model.recommendForUserSubset(users,100)
+
+    preds = userRecs.select(userRecs.userId, F.explode(userRecs.recommendations.movieId))
+    prediction = preds.groupby('userId').agg(F.collect_list('col').alias("col"))
+
+    labels = val_df.groupby('userId').agg(F.collect_list('movieId').alias("movieId"))
+
+    rankingsRDD = (prediction.join(labels, 'userId').rdd.map(lambda row: (row[1], row[2])))
+
+    metrics = RankingMetrics(rankingsRDD)
+    print("Val")
+    print("Mean Average Precision", metrics.meanAveragePrecision)
+    print("Average Precision", metrics.precisionAt(5))
+    print("NDCG", metrics.ndcgAt(5))
+    print("Average Recall", metrics.recallAt(5))
+
+
+    #Test
+    users = test_df.select(als.getUserCol()).distinct()
+    userRecs = model.recommendForUserSubset(users,100)
+
+    preds = userRecs.select(userRecs.userId, F.explode(userRecs.recommendations.movieId))
+    prediction = preds.groupby('userId').agg(F.collect_list('col').alias("col"))
+
+    labels = test_df.groupby('userId').agg(F.collect_list('movieId').alias("movieId"))
+
+    rankingsRDD = (prediction.join(labels, 'userId').rdd.map(lambda row: (row[1], row[2])))
+
+    metrics = RankingMetrics(rankingsRDD)
+    print("Test")
+    print("Mean Average Precision", metrics.meanAveragePrecision)
+    print("Average Precision", metrics.precisionAt(5))
+    print("NDCG", metrics.ndcgAt(5))
+    print("Average Recall", metrics.recallAt(5))
 
     
-    als = ALS(maxIter=5, regParam=regParam, rank=5, userCol="userId", itemCol="movieId", ratingCol="rating")
-    paramGrid = ParamGridBuilder().addGrid(als.regParam, [0.1, 0.01]).addGrid(als.rank, range(4, 12)).build()
-    evaluator = RegressionEvaluator(metricName="rmse", labelCol="rating", predictionCol="prediction")
-    crossval = CrossValidator(estimator=als,
-                          estimatorParamMaps=paramGrid,
-                          evaluator=evaluator,
-                          numFolds=5)
-    model = crossval.fit(train_df)
-    bestModel = model.bestModel
-    final_pred = bestModel.transform(val_df)
-    final_pred = final_pred.filter(F.col('prediction') != np.nan)
-    rmse = evaluator.evaluate(final_pred)
-    print ("the rmse for Validation set: {}".format(rmse))
+    # Hyperparameter Tuning
+    # als = ALS(maxIter=5, regParam=regParam, rank=5, userCol="userId", itemCol="movieId", ratingCol="rating")
+    # paramGrid = ParamGridBuilder().addGrid(als.regParam, [0.1, 0.01]).addGrid(als.rank, range(4, 12)).build()
+    # evaluator = RegressionEvaluator(metricName="rmse", labelCol="rating", predictionCol="prediction")
+    # crossval = CrossValidator(estimator=als,
+    #                       estimatorParamMaps=paramGrid,
+    #                       evaluator=evaluator,
+    #                       numFolds=5)
+    # model = crossval.fit(train_df)
+    # bestModel = model.bestModel
+    # final_pred = bestModel.transform(val_df)
+    # final_pred = final_pred.filter(F.col('prediction') != np.nan)
+    # rmse = evaluator.evaluate(final_pred)
+    # print ("the rmse for Validation set: {}".format(rmse))
 
 
-    final_pred = bestModel.transform(test_df)
-    final_pred = final_pred.filter(F.col('prediction') != np.nan)
-    rmse = evaluator.evaluate(final_pred)
-    print ("the rmse for Test set is: {}".format(rmse))
+    # final_pred = bestModel.transform(test_df)
+    # final_pred = final_pred.filter(F.col('prediction') != np.nan)
+    # rmse = evaluator.evaluate(final_pred)
+    # print ("the rmse for Test set is: {}".format(rmse))
 
 
 
@@ -69,10 +107,12 @@ def main(spark, netID):
 if __name__ == "__main__":
 
     # Create the spark session object
-    spark = SparkSession.builder.appName('part1').getOrCreate()
+    spark = SparkSession.builder.appName('latent factor').getOrCreate()
 
     # Get user netID from the command line
-    netID = getpass.getuser()
+    train = sys.argv[1]
+    val = sys.argv[2]
+    test = sys.argv[3]
 
     # Call our main routine
-    main(spark, netID)
+    main(spark, train, val, test)
