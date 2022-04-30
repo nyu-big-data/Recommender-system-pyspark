@@ -32,11 +32,11 @@ def main(spark, train, val, test):
 
     labels = test_df.groupby('userId').agg(F.collect_list('movieId').alias("movieId"))
     
-    sc = SparkContext
+    sc = spark.sparkContext
     predictions_df = predictions.toPandas()
     labels_df = labels.toPandas()
-    pred = predictions_df['movieId'].tolist()
-    predAndLabel = [(pred, x['movieId']) for x in labels_df.iterrows()]
+    pred = list(predictions_df['movieId'])
+    predAndLabel = [(pred, x['movieId']) for i, x in labels_df.iterrows()]
     predAndLabels = sc.parallelize(predAndLabel)
     
     metrics = RankingMetrics(predAndLabels)
