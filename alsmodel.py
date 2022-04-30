@@ -51,9 +51,9 @@ def main(spark, train, val, test):
 
     labels = val_df.groupby('userId').agg(F.collect_list('movieId').alias("movieId"))
 
-    rankingsRDD = (prediction.join(labels, 'userId').rdd.map(lambda row: (row[1], row[2])))
+    predAndLabels = (prediction.join(labels, 'userId').rdd.map(lambda row: (row[1], row[2])))
 
-    metrics = RankingMetrics(rankingsRDD)
+    metrics = RankingMetrics(predAndLabels)
     print("Val")
     print("Mean Average Precision", metrics.meanAveragePrecision)
     print("Average Precision", metrics.precisionAt(5))
@@ -70,9 +70,9 @@ def main(spark, train, val, test):
 
     labels = test_df.groupby('userId').agg(F.collect_list('movieId').alias("movieId"))
 
-    rankingsRDD = (prediction.join(labels, 'userId').rdd.map(lambda row: (row[1], row[2])))
+    predAndLabels = (prediction.join(labels, 'userId').rdd.map(lambda row: (row[1], row[2])))
 
-    metrics = RankingMetrics(rankingsRDD)
+    metrics = RankingMetrics(predAndLabels)
     print("Test")
     print("Mean Average Precision", metrics.meanAveragePrecision)
     print("Average Precision", metrics.precisionAt(5))
