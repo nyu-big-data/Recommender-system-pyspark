@@ -5,12 +5,8 @@ from itertools import count
 from requests import head
 
 # And pyspark.sql to get the spark session
-import pandas as pd
-import numpy as np
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
-from pyspark.ml.evaluation import RegressionEvaluator
-from pyspark.ml.recommendation import ALS
 
 def partition(ratings_df):
     ratings = ratings_df.rdd
@@ -29,7 +25,6 @@ def partition(ratings_df):
 
     train_df =  train_df1.union(train_df2) 
     
-    # train_df, val_df, test_df = ratings_df.randomSplit([.6, .2, .2])
     print(train_df.count(), val_df.count(), test_df.count())
     return train_df,val_df,test_df
 
@@ -58,7 +53,7 @@ def main(spark, netID):
     #Large Dataset
     ratings_df = spark.read.csv(f'hdfs:/user/{netID}/movielens/ml-latest/ratings.csv', header=True, schema='userId INT, movieId INT, rating FLOAT , timestamp INT')
     
-    train_df, val_df , test_df = partition(ratings_df)
+    train_df, val_df, test_df = ratings_df.randomSplit([.6, .2, .2])
     train_df.createOrReplaceTempView('train_df')
     train_df.write.csv(f"hdfs:/user/{netID}/movielens_large_train.csv")
 
