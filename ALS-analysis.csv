@@ -1,5 +1,5 @@
 ,0,1,2
-0,parameters,Movielens Small,Movielens Large
+0,metrics,Movielens Small,Movielens Large
 1,RMSE,0.9165634648728727,0.8103420898435425
 2,Val Mean Average Precision,0.0003216058930049994,9.91065824454492e-06
 3,Val Average Precision,0.005594405594405595,8.366577803469102e-06
