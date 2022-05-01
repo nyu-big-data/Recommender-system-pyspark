@@ -1,5 +1,5 @@
 ,0,1,2
-0,parameters,Movielens Small,Movielens Large
+0,metrics,Movielens Small,Movielens Large
 1,Mean Average Precision,0.0381668928989208,0.007268647780525474
 2,Average Precision,0.11630769230769232,0.015443804907603737
 3,NDCG,0.1312073223414145,0.01427201628489011
