@@ -13,6 +13,49 @@ from pyspark.mllib.evaluation import RankingMetrics
 from pyspark.ml.recommendation import ALS
 from pyspark.ml.tuning import CrossValidator, ParamGridBuilder
 
+def hyperParamTune(train_df):
+
+    als = ALS(maxIter=5, regParam=0.1, rank=150, userCol="userId", itemCol="movieId", ratingCol="rating")
+    paramGrid = ParamGridBuilder().addGrid(als.rank, [155,160,170,175,180,190]).addGrid(als.regParam, [0.01, 0.1, 1, 10]).build()
+    evaluator = RegressionEvaluator(metricName="rmse", labelCol="rating", predictionCol="prediction")
+    crossval = CrossValidator(estimator=als,
+                            estimatorParamMaps=paramGrid,
+                            evaluator=evaluator,
+                            numFolds=5)
+    model = crossval.fit(train_df)
+    bestModel = model.bestModel
+    print("**Best Model**")
+    print("  Rank:", bestModel._java_obj.parent().getRank())
+    print("  RegParam:", bestModel._java_obj.parent().getAlpha())
+    return als, bestModel
+
+def calMetrics(als, model, df):
+    metrics = {}
+    #RMSE
+    predictions = model.transform(df)
+    new_predictions = predictions.filter(F.col('prediction') != np.nan)
+    evaluator = RegressionEvaluator(metricName="rmse", labelCol="rating", predictionCol="prediction")
+    rmse = evaluator.evaluate(new_predictions)
+    metrics['rmse'] = rmse
+ 
+    #Ranking Metrics
+    users = df.select(als.getUserCol()).distinct()
+    userRecs = model.recommendForUserSubset(users,100)
+
+    preds = userRecs.select(userRecs.userId, F.explode(userRecs.recommendations.movieId))
+    prediction = preds.groupby('userId').agg(F.collect_list('col').alias("col"))
+
+    labels = df.groupby('userId').agg(F.collect_list('movieId').alias("movieId"))
+
+    predAndLabels = (prediction.join(labels, 'userId').rdd.map(lambda row: (row[1], row[2])))
+
+    metric = RankingMetrics(predAndLabels)
+    metrics['MAP'] = metric.meanAveragePrecision
+    metrics['p'] = metric.precisionAt(100)
+    metrics['ndcg'] = metric.ndcgAt(100)
+    metrics['recall'] = metric.recallAt(100)
+    return metrics
+ 
 
 def main(spark, train, val, test):
     '''Main routine for Lab Solutions
@@ -26,81 +69,27 @@ def main(spark, train, val, test):
     val_df = spark.read.csv(val, header=True, schema='userId INT, movieId INT, rating FLOAT , timestamp INT')
     test_df = spark.read.csv(test, header=True, schema='userId INT, movieId INT, rating FLOAT , timestamp INT')
   
-    regParam = 0.1
    
-    als = ALS(maxIter=5, regParam=regParam, rank=5, userCol="userId", itemCol="movieId", ratingCol="rating")
+    als = ALS(maxIter=5, regParam=0.1, rank=5, userCol="userId", itemCol="movieId", ratingCol="rating")
     model = als.fit(train_df)
 
+    print("Starting Evaluation")
     # Evaluation
+    valMetrics = calMetrics(als ,model, val_df)
+    testMetrics = calMetrics(als, model, test_df)
 
-    #RMSE
-    predictions = model.transform(val_df)
-    new_predictions = predictions.filter(F.col('prediction') != np.nan)
-    evaluator = RegressionEvaluator(metricName="rmse", labelCol="rating", predictionCol="prediction")
-    rmse = evaluator.evaluate(new_predictions)
-    print ("the rmse before hyperparameter training: {}".format(rmse))
- 
-    #Ranking Metrics
-    
-    #Validation
-    users = val_df.select(als.getUserCol()).distinct()
-    userRecs = model.recommendForUserSubset(users,100)
+    print("Validation Metrics", valMetrics)
+    print("Test Metrics", testMetrics)
 
-    preds = userRecs.select(userRecs.userId, F.explode(userRecs.recommendations.movieId))
-    prediction = preds.groupby('userId').agg(F.collect_list('col').alias("col"))
-
-    labels = val_df.groupby('userId').agg(F.collect_list('movieId').alias("movieId"))
-
-    predAndLabels = (prediction.join(labels, 'userId').rdd.map(lambda row: (row[1], row[2])))
-
-    metrics = RankingMetrics(predAndLabels)
-    print("Val")
-    print("Mean Average Precision", metrics.meanAveragePrecision)
-    print("Average Precision", metrics.precisionAt(5))
-    print("NDCG", metrics.ndcgAt(5))
-    print("Average Recall", metrics.recallAt(5))
-
-
-    #Test
-    users = test_df.select(als.getUserCol()).distinct()
-    userRecs = model.recommendForUserSubset(users,100)
-
-    preds = userRecs.select(userRecs.userId, F.explode(userRecs.recommendations.movieId))
-    prediction = preds.groupby('userId').agg(F.collect_list('col').alias("col"))
-
-    labels = test_df.groupby('userId').agg(F.collect_list('movieId').alias("movieId"))
-
-    predAndLabels = (prediction.join(labels, 'userId').rdd.map(lambda row: (row[1], row[2])))
-
-    metrics = RankingMetrics(predAndLabels)
-    print("Test")
-    print("Mean Average Precision", metrics.meanAveragePrecision)
-    print("Average Precision", metrics.precisionAt(5))
-    print("NDCG", metrics.ndcgAt(5))
-    print("Average Recall", metrics.recallAt(5))
-
-    
+    print("Starting HyperParameter Tuning")
     # Hyperparameter Tuning
-    # als = ALS(maxIter=5, regParam=regParam, rank=5, userCol="userId", itemCol="movieId", ratingCol="rating")
-    # paramGrid = ParamGridBuilder().addGrid(als.regParam, [0.1, 0.01]).addGrid(als.rank, range(4, 12)).build()
-    # evaluator = RegressionEvaluator(metricName="rmse", labelCol="rating", predictionCol="prediction")
-    # crossval = CrossValidator(estimator=als,
-    #                       estimatorParamMaps=paramGrid,
-    #                       evaluator=evaluator,
-    #                       numFolds=5)
-    # model = crossval.fit(train_df)
-    # bestModel = model.bestModel
-    # final_pred = bestModel.transform(val_df)
-    # final_pred = final_pred.filter(F.col('prediction') != np.nan)
-    # rmse = evaluator.evaluate(final_pred)
-    # print ("the rmse for Validation set: {}".format(rmse))
+    newAls, newModel = hyperParamTune(train_df)
 
+    valMetrics = calMetrics(newAls ,newModel, val_df)
+    testMetrics = calMetrics(newAls, newModel, test_df)
 
-    # final_pred = bestModel.transform(test_df)
-    # final_pred = final_pred.filter(F.col('prediction') != np.nan)
-    # rmse = evaluator.evaluate(final_pred)
-    # print ("the rmse for Test set is: {}".format(rmse))
-
+    print("Validation Metrics", valMetrics)
+    print("Test Metrics", testMetrics)
 
 
 # Only enter this block if we're in main
