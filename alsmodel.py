@@ -15,8 +15,8 @@ from pyspark.ml.tuning import CrossValidator, ParamGridBuilder
 
 def hyperParamTune(train_df):
 
-    als = ALS(maxIter=5, regParam=0.1, rank=150, userCol="userId", itemCol="movieId", ratingCol="rating")
-    paramGrid = ParamGridBuilder().addGrid(als.rank, [155,160,170,175,180,190]).addGrid(als.regParam, [0.01, 0.1, 1, 10]).build()
+    als = ALS(maxIter=5, regParam=0.1, rank=100, userCol="userId", itemCol="movieId", ratingCol="rating")
+    paramGrid = ParamGridBuilder().addGrid(als.rank, [100,120,140,160,180,200]).addGrid(als.regParam, [0.01, 0.1, 1, 10]).build()
     evaluator = RegressionEvaluator(metricName="rmse", labelCol="rating", predictionCol="prediction")
     crossval = CrossValidator(estimator=als,
                             estimatorParamMaps=paramGrid,
@@ -70,7 +70,7 @@ def main(spark, train, val, test):
     test_df = spark.read.csv(test, header=True, schema='userId INT, movieId INT, rating FLOAT , timestamp INT')
   
    
-    als = ALS(maxIter=5, regParam=0.1, rank=5, userCol="userId", itemCol="movieId", ratingCol="rating")
+    als = ALS(maxIter=5, regParam=0.1, rank=100, userCol="userId", itemCol="movieId", ratingCol="rating")
     model = als.fit(train_df)
 
     print("Starting Evaluation")
