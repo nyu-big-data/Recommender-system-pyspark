@@ -6,10 +6,8 @@ from lightfm.evaluation import precision_at_k
 from scipy.sparse import csr_matrix
 from time import time
 from lightfm.cross_validation import random_train_test_split
-from lightfm.datasets import fetch_movielens
 
 def hyperParamTune(train, val, params, m_iter):
-    
     metrics = {}
     hyperparams = params
     for rank in hyperparams['rank']:  
@@ -27,19 +25,28 @@ def hyperParamTune(train, val, params, m_iter):
 
 def main():
     
-    movielens = fetch_movielens()
-    totalTrain, test = movielens['train'], movielens['test']
+    df = pd.read_csv('/scratch/mmk9369/movielens/ml-latest-small/ratings.csv')
+    print(len(df['userId'].unique()), len(df['movieId'].unique()))
     
-    train, val = random_train_test_split(totalTrain, test_percentage=0.7)
+    df_interaction = pd.pivot_table(df, index='userId', columns='movieId', values='rating')
+    print(df_interaction.shape)
+    
+    dfMatrix = csr_matrix(df_interaction.values)
+    dfMatrix.data = np.nan_to_num(dfMatrix.data, copy=False)
+    print(dfMatrix.shape)
 
-    params = {"rank": [100,120,140,160,180,200], "regParam": [0.01, 0.1, 1, 10]}
+    (train, valTest) = random_train_test_split(dfMatrix, test_percentage=0.8)
+    (val, test) = random_train_test_split(valTest, test_percentage=0.5)
+    print(train.shape, val.shape, test.shape)
+
+    params = {"rank": [100,125,150,175,200], "regParam": [0.01, 0.1, 1, 10]}
     
     st = time()
-    metrics = hyperParamTune(train, val, params, m_iter = 4)
+    metrics = hyperParamTune(train, val, params, m_iter = 5)
     end = round(time()-st, 3)
     print("Hyperparameter tuning took {} seconds".format(end))
 
-    maxMetric = 0
+    maxMetric = -999
     for rank in metrics.keys():
         for regParam in metrics[rank]:
             if metrics[rank][regParam] > maxMetric:
@@ -52,13 +59,12 @@ def main():
     st = time()
     model = LightFM(random_state = 123, learning_rate = bestRegParam, no_components = bestRank)
     model = model.fit(train, epochs = 5)
-    metric =  precision_at_k(model, test).mean()
     end = round(time()-st, 3)
     
+    metric =  precision_at_k(model, test).mean()
     print("Evaluation on test data: {}".format(metric))
-    print("Final model training and fitting took {}".format(end))
+    print("Final model training and fitting took {} seconds".format(end))
     
-    return pd.DataFrame(metrics)
+    print(pd.DataFrame(metrics))
 
-df = main()
-df.to_csv('LFM.csv')
+main()

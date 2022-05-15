@@ -9,11 +9,11 @@ from pyspark.sql import Row
 import pyspark.sql.functions as F
 from pyspark.mllib.evaluation import RankingMetrics
 from time import time
+import sys
 
 
 
 def hyperParamTune(train, val, params):
-
     metrics = {}
     hyperparams = params
     for rank in hyperparams['rank']:  
@@ -22,9 +22,9 @@ def hyperParamTune(train, val, params):
         for reg in hyperparams['regParam']:
             als = ALS(maxIter=5, regParam=reg, rank=rank, userCol="userId", itemCol="movieId", ratingCol="rating")
             model = als.fit(train)
-            pAt = calMetrics(als,model,val)   
+            MAP = calMetrics(als,model,val)   
             regParam = 'Reg Param {}'.format(reg)   
-            metric[regParam] = pAt
+            metric[regParam] = MAP
         metrics[r] = metric          
     return metrics 
 
@@ -42,38 +42,51 @@ def calMetrics(als, model, df):
     predAndLabels = (prediction.join(labels, 'userId').rdd.map(lambda row: (row[1], row[2])))
 
     metric = RankingMetrics(predAndLabels)
-    metrics = metric.precisionAt(100)
+    metrics = metric.meanAveragePrecision
     return metrics
 
-def main():
+def main(spark, data):
     
-    train_df = pd.read_csv('/scratch/mmk9369/movilens_small_train.csv')
-    test_df = pd.read_csv('/scratch/mmk9369/movilens_small_test.csv')
-    val_df = pd.read_csv('/scratch/mmk9369/movilens_small_val.csv')
-    
-    params = {"rank": [100,120,140,160,180,200], "regParam": [0.01, 0.1, 1, 10]}
+    df = spark.read.csv(data, header=True, schema='userId INT, movieId INT, rating FLOAT , timestamp INT')
+
+    train_df, val_test = df.randomSplit([0.8, 0.2], seed=12345)
+    test_df, val_df = val_test.randomSplit([0.5, 0.5], seed=12345)
+        
+    params = {"rank":[100,125,150,175,200], "regParam": [0.01, 0.1, 1, 10]}
 
     st = time()
     metrics = hyperParamTune(train_df, val_df, params)
     end = round(time()-st, 3)
     print("Hyperparameter tuning took {} seconds".format(end))
 
-    maxMetric = 0
+    maxMetric = -999
     for rank in metrics.keys():
         for regParam in metrics[rank]:
             if metrics[rank][regParam] > maxMetric:
+                maxMetric = metrics[rank][regParam]
                 maxRank = rank
                 maxRegParam = regParam         
-    bestRegParam, bestRank = float(str.split(maxRegParam, ' ')[0]), int(str.split(maxRank, ' ')[0])
+    bestRegParam, bestRank = float(str.split(maxRegParam, ' ')[2]), int(str.split(maxRank, ' ')[1])
     print("Best rank: {}, best reg: {}".format(bestRank, bestRegParam))
 
     st = time()
     als = ALS(maxIter=5, regParam=bestRegParam, rank=bestRank, userCol="userId", itemCol="movieId", ratingCol="rating")
     model = als.fit(train_df)
-    testMetric = calMetrics(als, model, test_df)
     end = round(time()-st, 3)
     
+    testMetric = calMetrics(als, model, test_df)
     print("Evaluation on test data: {}".format(testMetric))
-    print("Final model training and fitting took {}".format(end))
+    print("Final model training and fitting took {} seconds".format(end))
     
-    return pd.DataFrame(metrics)
+    print(pd.DataFrame(metrics))
+
+if __name__ == "__main__":
+
+    # Create the spark session object
+    spark = SparkSession.builder.appName('latent factor').getOrCreate()
+
+    # Get user netID from the command line
+    data = sys.argv[1]
+
+    # Call our main routine
+    main(spark, data)

@@ -51,9 +51,9 @@ def calMetrics(als, model, df):
 
     metric = RankingMetrics(predAndLabels)
     metrics['MAP'] = metric.meanAveragePrecision
-    metrics['p'] = metric.precisionAt(100)
-    metrics['ndcg'] = metric.ndcgAt(100)
-    metrics['recall'] = metric.recallAt(100)
+    metrics['p'] = metric.precisionAt(5)
+    metrics['ndcg'] = metric.ndcgAt(5)
+    metrics['recall'] = metric.recallAt(5)
     return metrics
  
 
