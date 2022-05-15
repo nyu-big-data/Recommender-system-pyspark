@@ -14,8 +14,8 @@ def hyperParamTune(train, val, params, m_iter):
         r = 'Rank {}'.format(rank)
         metric = {}  
         for reg in hyperparams['regParam']:
-            model = LightFM(random_state = 123, learning_rate = reg, no_components = rank)
-            model.fit(train, epochs=m_iter)
+            model = LightFM(loss = 'warp', user_alpha = reg, no_components = rank)
+            model.fit(train, epochs=m_iter, verbose=False)
             MAP = precision_at_k(model, val, k = 100).mean()   
             regParam = 'Reg Param {}'.format(reg)   
             metric[regParam] = MAP
@@ -57,11 +57,11 @@ def main():
     print("Best rank: {}, best reg: {}".format(bestRank, bestRegParam))
 
     st = time()
-    model = LightFM(random_state = 123, learning_rate = bestRegParam, no_components = bestRank)
-    model = model.fit(train, epochs = 5)
+    model = LightFM(loss = 'warp', user_alpha = bestRegParam, no_components = bestRank)
+    model.fit(train, epochs=5, verbose=False)
     end = round(time()-st, 3)
     
-    metric =  precision_at_k(model, test).mean()
+    metric =  precision_at_k(model, test, k=100).mean()
     print("Evaluation on test data: {}".format(metric))
     print("Final model training and fitting took {} seconds".format(end))
     

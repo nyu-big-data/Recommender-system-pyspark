@@ -20,7 +20,7 @@ def hyperParamTune(train, val, params):
         r = 'Rank {}'.format(rank)
         metric = {}  
         for reg in hyperparams['regParam']:
-            als = ALS(maxIter=5, regParam=reg, rank=rank, userCol="userId", itemCol="movieId", ratingCol="rating")
+            als = ALS(maxIter=5, regParam=reg, rank=rank, userCol="userId", itemCol="movieId", ratingCol="rating", coldStartStrategy="drop")
             model = als.fit(train)
             MAP = calMetrics(als,model,val)   
             regParam = 'Reg Param {}'.format(reg)   
@@ -70,7 +70,7 @@ def main(spark, data):
     print("Best rank: {}, best reg: {}".format(bestRank, bestRegParam))
 
     st = time()
-    als = ALS(maxIter=5, regParam=bestRegParam, rank=bestRank, userCol="userId", itemCol="movieId", ratingCol="rating")
+    als = ALS(maxIter=5, regParam=bestRegParam, rank=bestRank, userCol="userId", itemCol="movieId", ratingCol="rating", coldStartStrategy="drop")
     model = als.fit(train_df)
     end = round(time()-st, 3)
     

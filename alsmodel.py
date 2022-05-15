@@ -15,7 +15,7 @@ from pyspark.ml.tuning import CrossValidator, ParamGridBuilder
 
 def hyperParamTune(train_df):
 
-    als = ALS(maxIter=5, regParam=0.1, rank=100, userCol="userId", itemCol="movieId", ratingCol="rating")
+    als = ALS(maxIter=5, regParam=0.1, rank=100, userCol="userId", itemCol="movieId", ratingCol="rating", coldStartStrategy="drop")
     paramGrid = ParamGridBuilder().addGrid(als.rank, [100,120,140,160,180,200]).addGrid(als.regParam, [0.01, 0.1, 1, 10]).build()
     evaluator = RegressionEvaluator(metricName="rmse", labelCol="rating", predictionCol="prediction")
     crossval = CrossValidator(estimator=als,
@@ -51,9 +51,9 @@ def calMetrics(als, model, df):
 
     metric = RankingMetrics(predAndLabels)
     metrics['MAP'] = metric.meanAveragePrecision
-    metrics['p'] = metric.precisionAt(5)
-    metrics['ndcg'] = metric.ndcgAt(5)
-    metrics['recall'] = metric.recallAt(5)
+    metrics['p'] = metric.precisionAt(100)
+    metrics['ndcg'] = metric.ndcgAt(100)
+    metrics['recall'] = metric.recallAt(100)
     return metrics
  
 
@@ -70,7 +70,7 @@ def main(spark, train, val, test):
     test_df = spark.read.csv(test, header=True, schema='userId INT, movieId INT, rating FLOAT , timestamp INT')
   
    
-    als = ALS(maxIter=5, regParam=0.1, rank=100, userCol="userId", itemCol="movieId", ratingCol="rating")
+    als = ALS(maxIter=5, regParam=0.1, rank=100, userCol="userId", itemCol="movieId", ratingCol="rating", coldStartStrategy="drop")
     model = als.fit(train_df)
 
     print("Starting Evaluation")
