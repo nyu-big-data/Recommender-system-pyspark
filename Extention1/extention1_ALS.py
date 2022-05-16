@@ -20,7 +20,7 @@ def hyperParamTune(train, val, params):
         r = 'Rank {}'.format(rank)
         metric = {}  
         for reg in hyperparams['regParam']:
-            als = ALS(maxIter=5, regParam=reg, rank=rank, userCol="userId", itemCol="movieId", ratingCol="rating", coldStartStrategy="drop")
+            als = ALS(maxIter=10, regParam=reg, rank=rank, userCol="userId", itemCol="movieId", ratingCol="rating", coldStartStrategy="drop")
             model = als.fit(train)
             MAP = calMetrics(als,model,val)   
             regParam = 'Reg Param {}'.format(reg)   
@@ -48,17 +48,23 @@ def calMetrics(als, model, df):
 def main(spark, data):
     
     df = spark.read.csv(data, header=True, schema='userId INT, movieId INT, rating FLOAT , timestamp INT')
+    print(df.count())
+    
+    # dfNew = df.sample(False, 0.5, 42)
+    # print(dfNew.count())
 
     train_df, val_test = df.randomSplit([0.8, 0.2], seed=12345)
     test_df, val_df = val_test.randomSplit([0.5, 0.5], seed=12345)
         
     params = {"rank":[100,125,150,175,200], "regParam": [0.01, 0.1, 1, 10]}
 
+    #Hyperparameter Tuning
     st = time()
     metrics = hyperParamTune(train_df, val_df, params)
     end = round(time()-st, 3)
     print("Hyperparameter tuning took {} seconds".format(end))
 
+    #Best Params
     maxMetric = -999
     for rank in metrics.keys():
         for regParam in metrics[rank]:
@@ -69,8 +75,9 @@ def main(spark, data):
     bestRegParam, bestRank = float(str.split(maxRegParam, ' ')[2]), int(str.split(maxRank, ' ')[1])
     print("Best rank: {}, best reg: {}".format(bestRank, bestRegParam))
 
+    #Model Fitting
     st = time()
-    als = ALS(maxIter=5, regParam=bestRegParam, rank=bestRank, userCol="userId", itemCol="movieId", ratingCol="rating", coldStartStrategy="drop")
+    als = ALS(maxIter=10, regParam=bestRegParam, rank=bestRank, userCol="userId", itemCol="movieId", ratingCol="rating", coldStartStrategy="drop")
     model = als.fit(train_df)
     end = round(time()-st, 3)
     

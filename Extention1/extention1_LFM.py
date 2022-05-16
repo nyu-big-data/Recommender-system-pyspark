@@ -26,7 +26,10 @@ def hyperParamTune(train, val, params, m_iter):
 def main():
     
     df = pd.read_csv('/scratch/mmk9369/movielens/ml-latest-small/ratings.csv')
-    print(len(df['userId'].unique()), len(df['movieId'].unique()))
+    print(len(df['userId'].unique()), len(df['movieId'].unique()), df.shape)
+
+    # dfNew = df.sample(frac=0.5)
+    # print(len(dfNew['userId'].unique()), len(dfNew['movieId'].unique()), dfNew.shape)
     
     df_interaction = pd.pivot_table(df, index='userId', columns='movieId', values='rating')
     print(df_interaction.shape)
@@ -41,11 +44,13 @@ def main():
 
     params = {"rank": [100,125,150,175,200], "regParam": [0.01, 0.1, 1, 10]}
     
+    #Hyperparameter Tuning
     st = time()
-    metrics = hyperParamTune(train, val, params, m_iter = 5)
+    metrics = hyperParamTune(train, val, params, m_iter = 10)
     end = round(time()-st, 3)
     print("Hyperparameter tuning took {} seconds".format(end))
 
+    #Best Parameters
     maxMetric = -999
     for rank in metrics.keys():
         for regParam in metrics[rank]:
@@ -56,9 +61,10 @@ def main():
     bestRegParam, bestRank = float(str.split(maxRegParam, ' ')[2]), int(str.split(maxRank, ' ')[1])
     print("Best rank: {}, best reg: {}".format(bestRank, bestRegParam))
 
+    #Model Fitting
     st = time()
     model = LightFM(loss = 'warp', user_alpha = bestRegParam, no_components = bestRank)
-    model.fit(train, epochs=5, verbose=False)
+    model.fit(train, epochs=10, verbose=False)
     end = round(time()-st, 3)
     
     metric =  precision_at_k(model, test, k=100).mean()
