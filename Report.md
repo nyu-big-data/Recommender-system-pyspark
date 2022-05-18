@@ -59,4 +59,52 @@ Results for large dataset:-
 
 The best rank was 200 and the best regParam was 0.01
 
+<h3>Single Machine Implementation</h3>
+In this section, we introduce lightfm package for recommendation system implementation in Python and compare our experiment results. We also utilized pandas and SciPy in intermediate steps for data structure transformation.
 
+<h4>Implementation of LightFM packages</h4>
+lightfm is a package designed for various types of recommender systems. It covers functions for both implicit and explicit feedback models, and can be applied to collaborative filtering models, hybrid models as well as cold-start recommendations.
+In this project we only explored the collaborative filtering part of the lightfm package. A summary of implementation steps is listed as follows:
+● Input dataframe of interactions, convert to initial utility matrix with pandas.pivot_table, then convert to coordinate format with scipy.sparse.crs_matrix which is the acceptable format for fitting lightfm models.
+● Training and test split with built-in function lightfm.cross_validation. We set split ratio as 0.8/0.2 and split into train and test set, corresponding with data splitting method for Spark ALS model.
+● Fit dataset into a lightfm instance, with corresponding hyperparameters selected from Section 6. We conducted experiments on Weighted Approximate Rank Pairwise Loss Personalized Ranking for better performance comparison. The time for model fitting was noted and then compared with ALS model.
+● Get test score of precision at k = 100 and takemean of it. And compared this with ALS MAP Ranking metric.
+
+<h4>Performance comparison with Spark’s ALS model</h4>
+We ran lightfm model on 50% (50418,4) and 100% (100836, 4) of small dataset, with the same hyperparameter combinations as in Spark ALS. Some instant observations are:
+● LightFM in comparison with ALS model, gives better performance in terms of both the accuracy and model fitting time, on same dataset and hyper parameters.
+● The optimal hyperparameter combinations for Spark ALS and LightFM do not agree. This may result from different splitting methodologies of original dataset
+● LightFM and ALS when compared on different dataset sizes produces same trend i.e., LightFM is faster than ALS, but when We tried to run a huge dataset like the Movielens large dataset on both the models. LightFM gave us the error of memory full and were not able to predict movie recommendations whereas ALS model was easily able to process the large dataset. Hence,LightFM is better on small datasets, but we cannot implement this model on huge datasets (which is usually the case in most recommender systems problems). Also, lightfm only contains limited built-in evaluation metrics. So, this makes ALS preferable when dealing with large datasets.
+
+
+(i)Whole small dataset on LightFM
+| RegPara m | Rank 100 | Rank 125 | Rank 150 | Rank 175 | Rank 200 |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| 0.01 | 0.386197 | 0.385590 | 0.384410 | 0.386049 | 0.388393 |
+| 0.1 | 0.397918 | 0.398607 | 0.398902 | 0.398328 | 0.399000 |
+| 1 | 0.397820 | 0.397049 | 0.398869 | 0.399902 | 0.392656 |
+| 10 | 0.400918 | 0.400393 | 0.400852 | 0.401115 | 0.400574 |
+
+(ii)50% small dataset on LightFM
+| RegPar am | Rank 100 | Rank 125 | Rank 150 | Rank 175 | Rank 200 |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| 0.01 | 0.383607 | 0.383180 | 0.382738 | 0.380623 | 0.382344 |
+| 0.1 | 0.399131 | 0.395410 | 0.397344 | 0.398836 | 0.396541 |
+| 1 | 0.397754 | 0.395295 | 0.395115 | 0.398656 | 0.399656 |
+| 10 | 0.396902 | 0.397803 | 0.398180 | 0.395918 | 0.396934 |
+
+(iii)Whole small dataset on ALS
+| RegPara m | Rank 100 | Rank 125 | Rank 150 | Rank 175 | Rank 200 |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| 0.01 | 0.013289 | 0.013139 | 0.013796 | 0.013589 | 0.014587 |
+| 0.1 | 0.005627 | 0.005709 | 0.005709 | 0.005849 | 0.005758 |
+| 1 | 0.000009 | 0.000009 | 0.000009 | 0.000009 | 0.000009 |
+| 10 | 0.000004 | 0.000004 | 0.000004 | 0.000004 | 0.000004 |
+
+(iv) 50% small dataset on ALS
+| RegPara m | Rank 100 | Rank 125 | Rank 150 | Rank 175 | Rank 200 |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| 0.01 | 0.013638 | 0.012732 | 0.013223 | 0.012420 | 0.013303 |
+| 0.1 | 0.006451 | 0.006454 | 0.006594 | 0.006539 | 0.006714 |
+| 1 | 0.000006 | 0.000006 | 0.000006 | 0.000006 | 0.000006 |
+| 10 | 0.000048 | 0.000049 | 0.000047 | 0.000049 | 0.000047 |
